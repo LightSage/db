@@ -11,37 +11,21 @@ description: Bandai WonderSwan (Color/Crystal) & Benesse PocketChallenge V2 emul
 download_page: https://github.com/FluBBaOfWard/NitroSwan/releases
 downloads:
   NitroSwan.zip:
-    size: 182574
-    size_str: 178 KiB
-    url: https://github.com/FluBBaOfWard/NitroSwan/releases/download/v0.6.6/NitroSwan.zip
+    size: 183847
+    size_str: 179 KiB
+    url: https://github.com/FluBBaOfWard/NitroSwan/releases/download/v0.7.1/NitroSwan.zip
 github: FluBBaOfWard/NitroSwan
 icon: https://db.universal-team.net/assets/images/icons/nitroswan.png
 image: https://raw.githubusercontent.com/FluBBaOfWard/NitroSwan/main/logo.png
 image_length: 38554
 layout: app
 source: https://github.com/FluBBaOfWard/NitroSwan
-stars: 45
+stars: 50
 systems:
 - DS
 title: NitroSwan
-update_notes: '<ul dir="auto">
-
-  <li>Added some support for WonderWitch.</li>
-
-  <li>Added saving of machine setting.</li>
-
-  <li>Added SwanCrystal border.</li>
-
-  <li>Fixed LCD icons palette when switching machine.</li>
-
-  <li>Fixed some small bugs in the DMA.</li>
-
-  <li>Fixed cpu prefix handling.</li>
-
-  <li>Optimized some opcodes.</li>
-
-  </ul>'
-updated: '2024-09-18T16:18:22Z'
-version: v0.6.6
-version_title: V0.6.6
+update_notes: <p dir="auto">Fixed a regression in the noise.</p>
+updated: '2025-03-17T18:04:23Z'
+version: v0.7.1
+version_title: V0.7.1
 ---

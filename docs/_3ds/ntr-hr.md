@@ -24,49 +24,38 @@ layout: app
 license: gpl-2.0
 license_name: GNU General Public License v2.0
 prerelease:
-  download_page: https://github.com/xzn/ntr-hr/releases/tag/v0.3.0.1
+  download_page: https://github.com/xzn/ntr-hr/releases/tag/v0.3.3.1
   downloads:
     BootNTRSelector-PabloMK7-Banner.cia:
-      size: 1631168
+      size: 1684416
       size_str: 1 MiB
-      url: https://github.com/xzn/ntr-hr/releases/download/v0.3.0.1/BootNTRSelector-PabloMK7-Banner.cia
-    NTR-HR.zip:
-      size: 150340
-      size_str: 146 KiB
-      url: https://github.com/xzn/ntr-hr/releases/download/v0.3.0.1/NTR-HR.zip
+      url: https://github.com/xzn/ntr-hr/releases/download/v0.3.3.1/BootNTRSelector-PabloMK7-Banner.cia
   qr:
     BootNTRSelector-PabloMK7-Banner.cia: https://db.universal-team.net/assets/images/qr/prerelease/bootntrselector-pablomk7-banner-cia.png
-  update_notes: '<p dir="auto">Changes:</p>
+  update_notes: '<p dir="auto">Change:</p>
 
-    <p dir="auto">Fix a long standing bug where skip duplicate frames would not work
-    if top and bottom screen have different buffer formats on the 3DS.</p>
+    <p dir="auto">Small optimizations.</p>
 
-    <p dir="auto">Reliable Stream init packets are now sent less frequently.</p>
+    <p dir="auto">Source code:</p>
 
-    <p dir="auto">Source:</p>
-
-    <p dir="auto"><a href="https://github.com/xzn/ntr-hr/tree/rs0_test1">https://github.com/xzn/ntr-hr/tree/rs0_test1</a></p>'
-  update_notes_md: 'Changes:
+    <p dir="auto"><a href="https://github.com/xzn/ntr-hr/tree/prog_delta">https://github.com/xzn/ntr-hr/tree/prog_delta</a></p>'
+  update_notes_md: 'Change:
 
 
-    Fix a long standing bug where skip duplicate frames would not work if top and
-    bottom screen have different buffer formats on the 3DS.
+    Small optimizations.
 
 
-    Reliable Stream init packets are now sent less frequently.
+    Source code:
 
 
-    Source:
-
-
-    https://github.com/xzn/ntr-hr/tree/rs0_test1'
-  updated: '2024-09-16T06:38:39Z'
-  version: v0.3.0.1
-  version_title: 0.3.0.1
+    https://github.com/xzn/ntr-hr/tree/prog_delta'
+  updated: '2025-04-09T13:10:43Z'
+  version: v0.3.3.1
+  version_title: 0.3.3.1
 qr:
   BootNTRSelector-PabloMK7-Banner.cia: https://db.universal-team.net/assets/images/qr/bootntrselector-pablomk7-banner-cia.png
 source: https://github.com/xzn/ntr-hr
-stars: 101
+stars: 130
 systems:
 - 3DS
 title: NTR-HR

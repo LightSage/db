@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import json
+import os
 import numpy
 import qrcode
 import re
@@ -312,6 +313,13 @@ def main(sourceFolder, docsDir: str, ghToken: str, priorityOnlyMode: bool) -> No
 					prerelease = releases[0]
 				for r in releases:
 					if not (r["prerelease"] or r["draft"]):
+						# check for usable assets
+						for asset in r["assets"]:
+							if (len(re.findall(app["download_filter"], asset["name"])) > 0 if "download_filter" in app else len(re.findall(DOWNLOAD_BLACKLIST, asset["name"])) == 0):
+								break
+						# didn't break (find a usable asset)? skip this release.
+						else:
+							continue
 						release = r
 						break
 
@@ -815,7 +823,8 @@ def main(sourceFolder, docsDir: str, ghToken: str, priorityOnlyMode: bool) -> No
 				notes,
 				app["license"] if "license" in app else "",
 				app["wiki"] if "wiki" in app else "",
-				app["icon_index"] if "icon_index" in app else -1
+				app["icon_index"] if "icon_index" in app else -1,
+				app["color_bg"] if "color_bg" in app else app["color"] if "color" in app else "",
 			)
 
 			# Change "DS" to "NDS" so it can be searched for
@@ -905,7 +914,7 @@ if __name__ == "__main__":
 	argParser = ArgumentParser(description="Generates the Universal-DB website and UniStores from a JSON")
 	argParser.add_argument("source", metavar="apps", type=str, help="source JSON folder")
 	argParser.add_argument("docs", metavar="../docs", type=str, help="location to output to")
-	argParser.add_argument("--token", "-t", type=str, help="GitHub API token (to get around rate limit")
+	argParser.add_argument("--token", "-t", type=str, help="GitHub API token (to get around rate limit", default=os.environ.get('TOKEN'))
 	argParser.add_argument("--priority", "-p", action="store_true", help="skips all apps not marked priority/updated within 30 days")
 
 	args = argParser.parse_args()

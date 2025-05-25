@@ -6,7 +6,7 @@ categories:
 color: '#dedede'
 color_bg: '#808080'
 created: '2017-11-11T17:53:30Z'
-description: An ebook reader for the Nintendo DS, DS Lite, and DSi.
+description: An ebook reader for the Nintendo DS and friends.
 download_page: https://github.com/rhaleblian/dslibris/releases
 downloads:
   dslibris-1.5.2-2.zip:
@@ -19,7 +19,7 @@ image: https://db.universal-team.net/assets/images/images/dslibris.png
 image_length: 213
 layout: app
 source: https://github.com/rhaleblian/dslibris
-stars: 73
+stars: 95
 systems:
 - DS
 title: dslibris

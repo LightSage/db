@@ -10,13 +10,13 @@ description: A new way to experience StreetPass
 download_page: https://gitlab.com/Sorunome/3ds-streetpass/-/releases
 downloads:
   netpass.3dsx:
-    size: 2007148
-    size_str: 1 MiB
-    url: https://gitlab.com/3ds-netpass/netpass/-/raw/19cc63166964292beb2c269a1177da36b7ab84e1/netpass.3dsx?inline=false
+    size: 3937924
+    size_str: 3 MiB
+    url: https://gitlab.com/3ds-netpass/netpass/-/raw/ed41ecdc752996bf75993ab639c59d6c0ad7512c/netpass.3dsx?inline=false
   netpass.cia:
-    size: 2245568
-    size_str: 2 MiB
-    url: https://gitlab.com/3ds-netpass/netpass/-/raw/19cc63166964292beb2c269a1177da36b7ab84e1/netpass.cia?inline=false
+    size: 4117440
+    size_str: 3 MiB
+    url: https://gitlab.com/3ds-netpass/netpass/-/raw/ed41ecdc752996bf75993ab639c59d6c0ad7512c/netpass.cia?inline=false
 gitlab: Sorunome/3ds-streetpass
 icon: https://gitlab.com/Sorunome/3ds-streetpass/-/raw/main/meta/icon.png
 image: https://gitlab.com/Sorunome/3ds-streetpass/-/raw/main/meta/icon.png
@@ -27,14 +27,18 @@ license_name: GNU General Public License v3.0 or later
 qr:
   netpass.cia: https://db.universal-team.net/assets/images/qr/netpass-cia.png
 source: https://gitlab.com/3ds-netpass/netpass
-stars: 47
+stars: 53
 systems:
 - 3DS
 title: NetPass
 unique_ids:
 - '0xF6574'
-update_notes: <p data-sourcepos="1:1-1:32" dir="auto">Fix sending fc-ident for sprelay</p>
-updated: '2024-12-07T03:28:34.209Z'
-version: v0.6.1
-version_title: v0.6.1
+update_notes: <ul data-sourcepos="1:2-4:37" dir="auto">&#x000A;<li data-sourcepos="1:2-1:40">Check
+  for firmware version on startup</li>&#x000A;<li data-sourcepos="2:2-2:31">Add option
+  to remove patches</li>&#x000A;<li data-sourcepos="3:2-3:42">Add option to turn off
+  background music</li>&#x000A;<li data-sourcepos="4:2-4:37">Fix back alley not saving
+  properly</li>&#x000A;</ul>
+updated: '2025-04-17T17:10:58.247Z'
+version: v1.0.1
+version_title: v1.0.1
 ---

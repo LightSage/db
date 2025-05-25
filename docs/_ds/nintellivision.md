@@ -12,21 +12,17 @@ description: Nintellivision - an Intellivision Emulator for the DS/DSi. High com
 download_page: https://github.com/wavemotion-dave/NINTV-DS/releases
 downloads:
   NINTV-DS.nds:
-    size: 727552
-    size_str: 710 KiB
-    url: https://github.com/wavemotion-dave/NINTV-DS/releases/download/5.9/NINTV-DS.nds
+    size: 758784
+    size_str: 741 KiB
+    url: https://github.com/wavemotion-dave/NINTV-DS/releases/download/6.1/NINTV-DS.nds
   README.md:
-    size: 33714
-    size_str: 32 KiB
-    url: https://github.com/wavemotion-dave/NINTV-DS/releases/download/5.9/README.md
-  extras.zip:
-    size: 22176384
-    size_str: 21 MiB
-    url: https://github.com/wavemotion-dave/NINTV-DS/releases/download/5.9/extras.zip
+    size: 35205
+    size_str: 34 KiB
+    url: https://github.com/wavemotion-dave/NINTV-DS/releases/download/6.1/README.md
 github: wavemotion-dave/NINTV-DS
 icon: https://db.universal-team.net/assets/images/icons/nintellivision.png
 image: https://raw.githubusercontent.com/wavemotion-dave/NINTV-DS/main/arm9/gfx/bgTop.png
-image_length: 38406
+image_length: 38834
 layout: app
 qr:
   NINTV-DS.nds: https://db.universal-team.net/assets/images/qr/nintv-ds-nds.png
@@ -34,19 +30,18 @@ script_message: 'You need "grom.bin", "exec.bin",
 
   and optionally "ivoice.bin" in the folder with your ROM files.'
 source: https://github.com/wavemotion-dave/NINTV-DS
-stars: 37
+stars: 42
 systems:
 - DS
 title: Nintellivision
-update_notes: '<p dir="auto">V5.9 : 27-Oct-2024 by wavemotion-dave</p>
+update_notes: '<p dir="auto">V6.1 : 04-Mar-2025 by wavemotion-dave</p>
 
   <ul dir="auto">
 
-  <li>Version 5.9 with a large number of new custom overlays (see readme.md and the
-  extras.zip pack)</li>
+  <li>Updated for newest custom overlays for latest homebrews.</li>
 
   </ul>'
-updated: '2024-10-27T11:03:41Z'
-version: '5.9'
-version_title: Version 5.9
+updated: '2025-03-04T12:30:21Z'
+version: '6.1'
+version_title: Version 6.1
 ---

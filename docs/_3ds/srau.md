@@ -1,5 +1,5 @@
 ---
-author: noirscape
+author: Trihexagram
 avatar: https://avatars.githubusercontent.com/u/13433513?v=4
 categories:
 - utility

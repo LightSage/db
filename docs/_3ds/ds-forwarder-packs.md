@@ -20,20 +20,21 @@ image: https://db.universal-team.net/assets/images/icons/ds-forwarder-packs.png
 image_length: 630
 layout: app
 source: https://github.com/RocketRobz/NTR_Forwarder
-stars: 73
+stars: 88
 systems:
 - 3DS
 - DS
 title: DS Forwarder Packs
-update_notes: '<p dir="auto"><strong>UPDATE 12/27/2024:</strong> Includes <a href="https://github.com/DS-Homebrew/nds-bootstrap/releases/tag/v2.3.3">nds-bootstrap
-  v2.3.3</a></p>
+update_notes: '<p dir="auto">Includes <a href="https://github.com/DS-Homebrew/nds-bootstrap/releases/tag/v2.5.0">nds-bootstrap
+  v2.5.0</a></p>
 
   <p dir="auto">To install or update:</p>
 
   <ul dir="auto">
 
-  <li>In the 7z file, extract what''s in <code class="notranslate">for SD card root</code>
-  to the root of the SD card.</li>
+  <li>In the 7z file, open the <code class="notranslate">for SD card root</code> folder,
+  then drag the <code class="notranslate">_nds</code> folder to the root of the SD
+  card.</li>
 
   </ul>
 
@@ -57,36 +58,14 @@ update_notes: '<p dir="auto"><strong>UPDATE 12/27/2024:</strong> Includes <a hre
 
   <ul dir="auto">
 
-  <li>Added a <code class="notranslate">.ini</code>-only setting to change the save
-  location of ROMs. Open <code class="notranslate">sd:/_nds/ntr_forwarder.ini</code>,
-  and add one of these lines under <code class="notranslate">[NTR-FORWARDER]</code>:
+  <li>Added <code class="notranslate">DS Phat Colors</code> per-game setting for DSi/3DS
+  users.</li>
 
-  <ul dir="auto">
-
-  <li><code class="notranslate">SAVE_LOCATION = 0</code> to put saves in the <code
-  class="notranslate">saves</code> folder in the same place as the <code class="notranslate">.nds</code>
-  file</li>
-
-  <li><code class="notranslate">SAVE_LOCATION = 1</code> to put saves in the exact
-  same place as the <code class="notranslate">.nds</code> file.</li>
-
-  <li><code class="notranslate">SAVE_LOCATION = 2</code> to put saves in <code class="notranslate">sd:/_nds/TWiLightMenu/saves/</code>.
-  Will fallback to <code class="notranslate">0</code> if TWLMenu++ is not installed.</li>
-
-  </ul>
-
-  </li>
-
-  </ul>
-
-  <h3 dir="auto">Bug fix</h3>
-
-  <ul dir="auto">
-
-  <li>Fixed DSiWare titles not working with the save number feature.</li>
+  <li>Removed <code class="notranslate">Card Read DMA</code> per-game setting for
+  flashcard users.</li>
 
   </ul>'
-updated: '2024-12-25T08:59:26Z'
-version: SD-20
-version_title: 'GitHub Release #20'
+updated: '2025-05-24T04:16:42Z'
+version: SD-24
+version_title: 'GitHub Release #24'
 ---

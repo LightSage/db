@@ -1,5 +1,5 @@
 ---
-author: noirscape
+author: Trihexagram
 avatar: https://avatars.githubusercontent.com/u/13433513?v=4
 categories:
 - utility
@@ -31,7 +31,7 @@ license_name: GNU General Public License v3.0
 qr:
   DSES.cia: https://db.universal-team.net/assets/images/qr/dses-cia.png
 source: https://github.com/noirscape/dses
-stars: 52
+stars: 58
 systems:
 - 3DS
 title: dses
