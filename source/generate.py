@@ -30,6 +30,7 @@ from unidecode import unidecode
 from unistore import StoreEntry, UniStore
 
 DOWNLOAD_BLACKLIST = r"(\.3ds$|\.apk|\.appimage|\.dmg|\.exe|\.ipa|\.love|\.nro|\.opk|\.pkg|\.smdh|\.vpk|\.xz|armhf|elf|linux|macos|osx|PS3|PSP|switch|ubuntu|vita|wii|win|x86_64|xbox)"
+DOCS_DIR = "../docs"
 
 
 def webName(name: str) -> str:
@@ -92,7 +93,7 @@ def saveIcon(img: Image, tempDir: str, index: int, ds: bool) -> Tuple[PngImageFi
 	return img, f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}"
 
 
-def retroarchUniStore(docsDir: str, tempDir: str) -> None:
+def retroarchUniStore(tempDir: str) -> None:
 	"""Generates the RetroArch Cores UniStore"""
 
 	print("Generating RetroArch UniStore")
@@ -158,9 +159,9 @@ def retroarchUniStore(docsDir: str, tempDir: str) -> None:
 		file.write("--atlas -f rgba -z auto\n\n")
 		for i in range(iconIndexRA):
 			file.write(f"{i}.png\n")
-	system(f"tex3ds -i {path.join(tempDir, 'ra', '48', 'icons.t3s')} -o {path.join(docsDir, 'unistore', 'retroarch.t3x')}")
+	system(f"tex3ds -i {path.join(tempDir, 'ra', '48', 'icons.t3s')} -o {path.join(DOCS_DIR, 'unistore', 'retroarch.t3x')}")
 
-	unistoreRA.save(path.join(docsDir, "unistore", "retroarch.unistore"))
+	unistoreRA.save(path.join(DOCS_DIR, "unistore", "retroarch.unistore"))
 
 
 def handle_gbatemp_app(app: Dict[str, Any]):
@@ -475,6 +476,43 @@ def handle_gitlab_app(app: Dict[str, Any]):
 	return app
 
 
+def create_web_file(app: Dict[str, Any]):
+	web = app.copy()
+	web["layout"] = "app"
+	# We want unique IDs as hex
+	if "unique_ids" in web:
+		web["unique_ids"] = [f"0x{uid:X}" for uid in web["unique_ids"]]
+	# long description is put as the content
+	if "long_description" in web:
+		web.pop("long_description")
+	# Remove large things that aren't needed
+	if "update_notes_md" in web:
+		web.pop("update_notes_md")
+	if "scripts" in web:
+		web.pop("scripts")
+	if "archive" in web:
+		web.pop("archive")
+	if "slug" in web:
+		web.pop("slug")
+	if "urls" in web:
+		web.pop("urls")
+	if "icon_index" in web:
+		web.pop("icon_index")
+	# Add defaults where absolutely needed
+	if "systems" not in web:
+		web["systems"] = ["3DS"]  # default to 3DS
+	if "updated" not in web:
+		web["updated"] = "---"
+	for sys in web["systems"]:
+		if "title" in web:
+			with open(path.join(DOCS_DIR, f"_{webName(sys)}", f"{webName(web['title'])}.md"), "w", encoding="utf8") as file:
+				file.write(f"---\n{yaml.dump(web, sort_keys=True, allow_unicode=True)}---\n")
+				if "long_description" in app:
+					file.write(app["long_description"])
+	
+	return web
+
+
 def main(sourceFolder, docsDir: str, ghToken: str, priorityOnlyMode: bool) -> None:
 	# Load app list json
 	source = []
@@ -777,39 +815,8 @@ def main(sourceFolder, docsDir: str, ghToken: str, priorityOnlyMode: bool) -> No
 		# Add to output json
 		output.append(app)
 
-		# Website file
-		web = app.copy()
-		web["layout"] = "app"
-		# We want unique IDs as hex
-		if "unique_ids" in web:
-			web["unique_ids"] = [f"0x{uid:X}" for uid in web["unique_ids"]]
-		# long description is put as the content
-		if "long_description" in web:
-			web.pop("long_description")
-		# Remove large things that aren't needed
-		if "update_notes_md" in web:
-			web.pop("update_notes_md")
-		if "scripts" in web:
-			web.pop("scripts")
-		if "archive" in web:
-			web.pop("archive")
-		if "slug" in web:
-			web.pop("slug")
-		if "urls" in web:
-			web.pop("urls")
-		if "icon_index" in web:
-			web.pop("icon_index")
-		# Add defaults where absolutely needed
-		if "systems" not in web:
-			web["systems"] = ["3DS"]  # default to 3DS
-		if "updated" not in web:
-			web["updated"] = "---"
-		for sys in web["systems"]:
-			if "title" in web:
-				with open(path.join(docsDir, f"_{webName(sys)}", f"{webName(web['title'])}.md"), "w", encoding="utf8") as file:
-					file.write(f"---\n{yaml.dump(web, sort_keys=True, allow_unicode=True)}---\n")
-					if "long_description" in app:
-						file.write(app["long_description"])
+		# Create the website file
+		create_web_file(app)
 
 		if "unistore_exclude" not in app or not app["unistore_exclude"]:
 			# Move links to end to be more readable in U-U
@@ -909,7 +916,7 @@ def main(sourceFolder, docsDir: str, ghToken: str, priorityOnlyMode: bool) -> No
 			if app["title"] == "RetroArch":
 				entry._entry["info"]["description"] += "\n\nCores must be downloaded from their separate UniStore, which can be added in settings."
 				if not priorityOnlyMode:
-					retroarchUniStore(docsDir, tempDir)
+					retroarchUniStore(tempDir)
 
 			unistore.append(entry)
 
@@ -938,7 +945,7 @@ def main(sourceFolder, docsDir: str, ghToken: str, priorityOnlyMode: bool) -> No
 if __name__ == "__main__":
 	argParser = ArgumentParser(description="Generates the Universal-DB website and UniStores from a JSON")
 	argParser.add_argument("source", metavar="apps", type=str, help="source JSON folder")
-	argParser.add_argument("docs", metavar="../docs", type=str, help="location to output to")
+	argParser.add_argument("docs", metavar=DOCS_DIR, type=str, help="location to output to")
 	argParser.add_argument("--token", "-t", type=str, help="GitHub API token (to get around rate limit", default=os.environ.get('TOKEN'))
 	argParser.add_argument("--priority", "-p", action="store_true", help="skips all apps not marked priority/updated within 30 days")
 
