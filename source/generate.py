@@ -166,7 +166,7 @@ def retroarchUniStore(tempDir: str) -> None:
 	unistoreRA.save(path.join(DOCS_DIR, "unistore", "retroarch.unistore"))
 
 
-def handle_gbatemp_app(app: Dict[str, Any]):
+def handle_gbatemp_app(r, app: Dict[str, Any]):
 	soup = BeautifulSoup(r.text, "html.parser")
 
 	if "title" not in app:
@@ -515,9 +515,10 @@ def create_web_file(app: Dict[str, Any]):
 	return web
 
 
-def create_error_report(e, webhook: discord.SyncWebhook):
+def create_error_report(e, app_name, webhook: discord.SyncWebhook):
 	embed = discord.Embed(title="Universal-DB Exception Occurred")
 	embed.description = f"```py\n{e}```"
+	embed.add_field(name="App Name", value=app_name)
 
 	webhook.send(embeds=[embed])
 
@@ -600,7 +601,7 @@ def main(sourceFolder, docsDir: str, ghToken: str, priorityOnlyMode: bool, webho
 						print(f"Error {r.status_code:d}, using old data!")
 						app = list(filter(lambda x: "gbatemp" in x and x["gbatemp"] == app["gbatemp"], oldData))[0]
 					else:
-						app = handle_gbatemp_app(app)
+						app = handle_gbatemp_app(r, app)
 
 				if "github" in app:
 					print("GitHub --", app["github"])
@@ -616,7 +617,8 @@ def main(sourceFolder, docsDir: str, ghToken: str, priorityOnlyMode: bool, webho
 			except Exception as e:
 				print(e)
 				if webhook:
-					create_error_report(e, webhook)
+					title = app['title'] if "title" in app else app
+					create_error_report(e, title, webhook)
 
 			# Process format strings in downloads if needed
 			if "eval_downloads" in app and app["eval_downloads"]:
