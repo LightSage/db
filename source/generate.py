@@ -10,6 +10,8 @@ import qrcode
 import re
 import requests
 import yaml
+import contextlib
+import discord
 
 from argparse import ArgumentParser, FileType
 from bs4 import BeautifulSoup
@@ -513,7 +515,14 @@ def create_web_file(app: Dict[str, Any]):
 	return web
 
 
-def main(sourceFolder, docsDir: str, ghToken: str, priorityOnlyMode: bool) -> None:
+def create_error_report(e, webhook: discord.SyncWebhook):
+	embed = discord.Embed(title="Universal-DB Exception Occurred")
+	embed.description = f"```py\n{e}```"
+
+	webhook.send(embeds=[embed])
+
+
+def main(sourceFolder, docsDir: str, ghToken: str, priorityOnlyMode: bool, webhook_url: str) -> None:
 	# Load app list json
 	source = []
 	for item in listdir(sourceFolder):
@@ -578,29 +587,36 @@ def main(sourceFolder, docsDir: str, ghToken: str, priorityOnlyMode: bool) -> No
 			else:
 				doUpdate = True
 
+		webhook = discord.SyncWebhook.from_url(webhook_url) if webhook_url else None
+
 		if doUpdate:
 			app["stars"] = 0
 
-			if "gbatemp" in app:
-				print("GBAtemp Download Center")
-				r = requests.get(f"https://gbatemp.net/download/{app['gbatemp']}/")
-				if r.status_code != 200:
-					print(f"Error {r.status_code:d}, using old data!")
-					app = list(filter(lambda x: "gbatemp" in x and x["gbatemp"] == app["gbatemp"], oldData))[0]
-				else:
-					app = handle_gbatemp_app(app)
+			try:
+				if "gbatemp" in app:
+					print("GBAtemp Download Center")
+					r = requests.get(f"https://gbatemp.net/download/{app['gbatemp']}/")
+					if r.status_code != 200:
+						print(f"Error {r.status_code:d}, using old data!")
+						app = list(filter(lambda x: "gbatemp" in x and x["gbatemp"] == app["gbatemp"], oldData))[0]
+					else:
+						app = handle_gbatemp_app(app)
 
-			if "github" in app:
-				print("GitHub --", app["github"])
-				app = handle_github_app(gh_req, app, gh_name_cache)
+				if "github" in app:
+					print("GitHub --", app["github"])
+					app = handle_github_app(gh_req, app, gh_name_cache)
 
-			if "bitbucket" in app:
-				print("Bitbucket --", app["bitbucket"]["repo"])
-				app = handle_bitbucket_app(app)
+				if "bitbucket" in app:
+					print("Bitbucket --", app["bitbucket"]["repo"])
+					app = handle_bitbucket_app(app)
 
-			if "gitlab" in app:
-				print("Gitlab --", app["gitlab"])
-				app = handle_gitlab_app(app)
+				if "gitlab" in app:
+					print("Gitlab --", app["gitlab"])
+					app = handle_gitlab_app(app)
+			except Exception as e:
+				print(e)
+				if webhook:
+					create_error_report(e, webhook)
 
 			# Process format strings in downloads if needed
 			if "eval_downloads" in app and app["eval_downloads"]:
@@ -948,7 +964,8 @@ if __name__ == "__main__":
 	argParser.add_argument("docs", metavar=DOCS_DIR, type=str, help="location to output to")
 	argParser.add_argument("--token", "-t", type=str, help="GitHub API token (to get around rate limit", default=os.environ.get('TOKEN'))
 	argParser.add_argument("--priority", "-p", action="store_true", help="skips all apps not marked priority/updated within 30 days")
+	argParser.add_argument("--error_webhook", "-er", type=str, help="Notifies a Discord channel if an exception occurred during the script", default=os.environ.get('WEBHOOK_URL'))
 
 	args = argParser.parse_args()
 
-	main(args.source, args.docs, args.token, args.priority)
+	main(args.source, args.docs, args.token, args.priority, args.error_webhook)
