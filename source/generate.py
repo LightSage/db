@@ -232,10 +232,10 @@ def handle_gbatemp_app(app: Dict[str, Any]):
 	return app
 
 
-def handle_github_app(request: requests.Session, app: Dict[str, Any]):
-	api = gh_req.get(f"https://api.github.com/repos/{app['github']}").json()
+def handle_github_app(request: requests.Session, app: Dict[str, Any], names_cache):
+	api = request.get(f"https://api.github.com/repos/{app['github']}").json()
 	assert "message" not in api, app["github"] + " API Error: " + api["message"]
-	releases = gh_req.get(f"https://api.github.com/repos/{app['github']}/releases").json()
+	releases = request.get(f"https://api.github.com/repos/{app['github']}/releases").json()
 	assert "message" not in releases, app["github"] + " API Error: " + releases["message"]
 	release = None
 	prerelease = None
@@ -255,7 +255,7 @@ def handle_github_app(request: requests.Session, app: Dict[str, Any]):
 
 	# If no actual release found on page 1, try /latest
 	if not release:
-		release = gh_req.get(f"https://api.github.com/repos/{app['github']}/releases/latest").json()
+		release = request.get(f"https://api.github.com/repos/{app['github']}/releases/latest").json()
 		if "message" in release and release["message"] == "Not Found":
 			release = None
 
@@ -264,13 +264,13 @@ def handle_github_app(request: requests.Session, app: Dict[str, Any]):
 
 	if "author" not in app:
 		username = api["owner"]["login"]
-		if username in names:
-			username = names[username]
+		if username in names_cache:
+			username = names_cache[username]
 		else:
-			user = gh_req.get(f"https://api.github.com/users/{username}").json()
+			user = request.get(f"https://api.github.com/users/{username}").json()
 			assert "message" not in user, app["github"] + " API Error: " + user["message"]
-			names[username] = user["name"] if user["name"] is not None else username
-			username = names[username]
+			names_cache[username] = user["name"] if user["name"] is not None else username
+			username = names_cache[username]
 		app["author"] = username
 
 	if "description" not in app and api["description"] != "" and api["description"] is not None:
@@ -316,7 +316,7 @@ def handle_github_app(request: requests.Session, app: Dict[str, Any]):
 
 		if "update_notes" not in app and release["body"] != "" and release["body"] is not None:
 			app["update_notes_md"] = release["body"].replace("\r\n", "\n")
-			app["update_notes"] = gh_req.post("https://api.github.com/markdown", json={"text": release["body"], "mode": "gfm" if "github" in app else "markdown", "context": app["github"] if "github" in app else None}).text
+			app["update_notes"] = request.post("https://api.github.com/markdown", json={"text": release["body"], "mode": "gfm" if "github" in app else "markdown", "context": app["github"] if "github" in app else None}).text
 			app["update_notes"] = re.sub(r'<a target="_blank" rel="noopener noreferrer" href="https:\/\/private-user-images.githubusercontent\.com.*?<\/a>', "", app["update_notes"])
 
 		if "updated" not in app:
@@ -364,7 +364,7 @@ def handle_github_app(request: requests.Session, app: Dict[str, Any]):
 
 			if "update_notes" not in app["prerelease"] and prerelease["body"] != "" and prerelease["body"] is not None:
 				app["prerelease"]["update_notes_md"] = prerelease["body"].replace("\r\n", "\n")
-				app["prerelease"]["update_notes"] = gh_req.post("https://api.github.com/markdown", json={"text": prerelease["body"], "mode": "gfm" if "github" in app else "markdown", "context": app["github"] if "github" in app else None}).text
+				app["prerelease"]["update_notes"] = request.post("https://api.github.com/markdown", json={"text": prerelease["body"], "mode": "gfm" if "github" in app else "markdown", "context": app["github"] if "github" in app else None}).text
 				app["prerelease"]["update_notes"] = re.sub(r'<a target="_blank" rel="noopener noreferrer" href="https:\/\/private-user-images.githubusercontent\.com.*?<\/a>', "", app["prerelease"]["update_notes"])
 
 				if "update_notes" not in app:
@@ -441,7 +441,7 @@ def main(sourceFolder, docsDir: str, ghToken: str, priorityOnlyMode: bool) -> No
 
 	output = []
 	iconIndex = 0
-	names = {}  # GitHub name cache
+	gh_name_cache = {}  # GitHub name cache
 	tempDir = path.join(path.dirname(sourceFolder), "temp")
 
 	# Create headers and a session for github specific requests
@@ -506,7 +506,7 @@ def main(sourceFolder, docsDir: str, ghToken: str, priorityOnlyMode: bool) -> No
 
 			if "github" in app:
 				print("GitHub --", app["github"])
-				app = handle_github_app(gh_req, app)
+				app = handle_github_app(gh_req, app, gh_name_cache)
 
 			if "bitbucket" in app:
 				print("Bitbucket --", app["bitbucket"]["repo"])
