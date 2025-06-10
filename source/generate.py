@@ -432,7 +432,7 @@ def handle_bitbucket_app(app: Dict[str, Any]):
 
 def handle_gitlab_app(app: Dict[str, Any]):
 	gitlab_id = app["gitlab"].replace('/', '%2F')
-	endpoint = app["gitlab_endpoint"] if "gitlab_endpoint" in app else "https://gitlab.com"
+	endpoint = app.get("gitlab_endpoint", "https://gitlab.com")
 	repo = requests.get(f"{endpoint}/api/v4/projects/{gitlab_id}").json()
 	releases = requests.get(f"{endpoint}/api/v4/projects/{gitlab_id}/releases?include_html_description=true").json()
 	release = releases[0]
@@ -474,7 +474,7 @@ def handle_gitlab_app(app: Dict[str, Any]):
 				app["downloads"][asset["name"]] = {
 					"url": asset["direct_asset_url"]
 				}
-	
+
 	return app
 
 
