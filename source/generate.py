@@ -12,6 +12,7 @@ import requests
 import yaml
 import contextlib
 import discord
+import traceback
 
 from argparse import ArgumentParser, FileType
 from bs4 import BeautifulSoup
@@ -93,6 +94,14 @@ def saveIcon(img: Image, tempDir: str, index: int, ds: bool) -> Tuple[PngImageFi
 	color.thumbnail((1, 1))
 	color = color.getpixel((0, 0))
 	return img, f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}"
+
+
+def create_traceback(exc):
+	etype = type(exc)
+	trace = exc.__traceback__
+
+	return ''.join(traceback.format_exception(etype, exc, trace))
+
 
 
 def retroarchUniStore(tempDir: str) -> None:
@@ -518,7 +527,8 @@ def create_web_file(app: Dict[str, Any]):
 def create_error_report(e, app_name, webhook: discord.SyncWebhook):
 	embed = discord.Embed(title="Universal-DB Exception Occurred")
 	embed.description = f"```py\n{e}```"
-	embed.add_field(name="App Name", value=app_name)
+	if app_name:
+		embed.add_field(name="App Name", value=app_name)
 
 	webhook.send(embeds=[embed])
 
@@ -617,10 +627,11 @@ def main(sourceFolder, docsDir: str, ghToken: str, priorityOnlyMode: bool, webho
 					print("Gitlab --", app["gitlab"])
 					app = handle_gitlab_app(app)
 			except Exception as e:
-				print(e)
+				trace = create_traceback(e)
+				print(trace)
 				if webhook:
 					title = app['title'] if "title" in app else fp
-					create_error_report(e, title, webhook)
+					create_error_report(trace, title, webhook)
 
 			# Process format strings in downloads if needed
 			if "eval_downloads" in app and app["eval_downloads"]:
@@ -972,4 +983,11 @@ if __name__ == "__main__":
 
 	args = argParser.parse_args()
 
-	main(args.source, args.docs, args.token, args.priority, args.error_webhook)
+	try:
+		main(args.source, args.docs, args.token, args.priority, args.error_webhook)
+	except Exception as e:
+		trace = create_traceback(e)
+		print(trace)
+		if args.error_webhook:
+			webhook = discord.SyncWebhook.from_url(args.error_webhook)
+			create_error_report(trace, None, webhook)
