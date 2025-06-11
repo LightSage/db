@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from typing import Dict, Any
+from typing import Dict, Any, List, Tuple
 
 import json
 import os
@@ -525,10 +525,11 @@ def create_error_report(e, app_name, webhook: discord.SyncWebhook):
 
 def main(sourceFolder, docsDir: str, ghToken: str, priorityOnlyMode: bool, webhook_url: str) -> None:
 	# Load app list json
-	source = []
+	source: List[Tuple[str, Dict[str, Any]]] = []
 	for item in listdir(sourceFolder):
-		with open(path.join(sourceFolder, item), encoding="utf8") as f:
-			source.append(json.load(f))
+		fp = path.join(sourceFolder, item)
+		with open(fp, encoding="utf8") as f:
+			source.append((fp, json.load(f)))
 
 	# Old data json
 	oldData = None
@@ -560,7 +561,8 @@ def main(sourceFolder, docsDir: str, ghToken: str, priorityOnlyMode: bool, webho
 	)
 
 	# Fetch info for GitHub apps and output
-	for i, app in enumerate(source):
+	for i, _app in enumerate(source):
+		fp, app = _app
 		doUpdate = True
 		# Only update alternating halves of the list to save API hits
 		# doUpdate = ((i % 2) == int((datetime.now().hour % 12) > 5))
@@ -617,7 +619,7 @@ def main(sourceFolder, docsDir: str, ghToken: str, priorityOnlyMode: bool, webho
 			except Exception as e:
 				print(e)
 				if webhook:
-					title = app['title'] if "title" in app else app
+					title = app['title'] if "title" in app else fp
 					create_error_report(e, title, webhook)
 
 			# Process format strings in downloads if needed
