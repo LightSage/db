@@ -36,9 +36,12 @@ from utils import create_traceback, was_recently_updated, get_matching_app, form
 DOWNLOAD_BLACKLIST = r"(\.3ds$|\.apk|\.appimage|\.dmg|\.exe|\.ipa|\.love|\.nro|\.opk|\.pkg|\.smdh|\.vpk|\.xz|armhf|elf|linux|macos|osx|PS3|PSP|switch|ubuntu|vita|wii|win|x86_64|xbox)"
 DOCS_DIR = None
 PRIORITY_MODE = True
+TEMP_DIR = path.join(path.dirname("apps"), "temp")
 
 
-def saveIcon(img: Image, tempDir: str, index: int, ds: bool) -> Tuple[PngImageFile, str]:
+def saveIcon(img: Image, index: int, ds: bool, *, location: Optional[str] = None) -> Tuple[PngImageFile, str]:
+	location = location or TEMP_DIR
+
 	if img.mode == "P":
 		pal = img.palette.palette
 		img = img.convert("RGBA")
@@ -51,7 +54,7 @@ def saveIcon(img: Image, tempDir: str, index: int, ds: bool) -> Tuple[PngImageFi
 		img = img.convert("RGBA")
 
 	img.thumbnail((48, 48))
-	img.save(path.join(tempDir, "48", f"{index}.png"))
+	img.save(path.join(location, "48", f"{index}.png"))
 
 	if ds:
 		imgDS = img.copy()
@@ -62,7 +65,7 @@ def saveIcon(img: Image, tempDir: str, index: int, ds: bool) -> Tuple[PngImageFi
 		data[...][transparent.T] = (0xFF, 0, 0xFF, 0xFF)
 		imgDS = Image.fromarray(data)
 		imgDS = imgDS.quantize()
-		imgDS.save(path.join(tempDir, "32", f"{index}.png"))
+		imgDS.save(path.join(location, "32", f"{index}.png"))
 
 	color = img.copy()
 	color.thumbnail((1, 1))
@@ -70,13 +73,13 @@ def saveIcon(img: Image, tempDir: str, index: int, ds: bool) -> Tuple[PngImageFi
 	return img, f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}"
 
 
-def retroarchUniStore(tempDir: str) -> None:
+def retroarchUniStore() -> None:
 	"""Generates the RetroArch Cores UniStore"""
 
 	print("Generating RetroArch UniStore")
 
-	if not path.exists(path.join(tempDir, "ra", "48")):
-		makedirs(path.join(tempDir, "ra", "48"))
+	if not path.exists(path.join(TEMP_DIR, "ra", "48")):
+		makedirs(path.join(TEMP_DIR, "ra", "48"))
 
 	unistoreRA = UniStore(
 		"RetroArch Cores",
@@ -106,7 +109,7 @@ def retroarchUniStore(tempDir: str) -> None:
 		img = requests.get(f"https://raw.githubusercontent.com/libretro/RetroArch/master/pkg/ctr/assets/{name[:-9]}.png")
 		if img.status_code == 200:
 			iconIndexRA += 1
-			saveIcon(Image.open(BytesIO(img.content)), path.join(tempDir, "ra"), iconIndexRA, False)
+			saveIcon(Image.open(BytesIO(img.content)), iconIndexRA, False, location=path.join(TEMP_DIR, "ra"))
 
 		notes = ""
 		if "description" in info and len(info["description"]) > 200:
@@ -132,11 +135,11 @@ def retroarchUniStore(tempDir: str) -> None:
 		unistoreRA.append(entry)
 
 	# Make t3x
-	with open(path.join(tempDir, "ra", "48", "icons.t3s"), "w", encoding="utf8") as file:
+	with open(path.join(TEMP_DIR, "ra", "48", "icons.t3s"), "w", encoding="utf8") as file:
 		file.write("--atlas -f rgba -z auto\n\n")
 		for i in range(iconIndexRA):
 			file.write(f"{i}.png\n")
-	system(f"tex3ds -i {path.join(tempDir, 'ra', '48', 'icons.t3s')} -o {path.join(DOCS_DIR, 'unistore', 'retroarch.t3x')}")
+	system(f"tex3ds -i {path.join(TEMP_DIR, 'ra', '48', 'icons.t3s')} -o {path.join(DOCS_DIR, 'unistore', 'retroarch.t3x')}")
 
 	unistoreRA.save(path.join(DOCS_DIR, "unistore", "retroarch.unistore"))
 
@@ -625,10 +628,10 @@ def process_app_entry(app: Dict[str, Any], fp: str, icon_idx: int, github_sessio
 	# Make icon for UniStore and QR
 	img = None
 	if "icon" in app or "image" in app or "icon_static" in app:
-		if not path.exists(path.join(tempDir, "48")):
-			makedirs(path.join(tempDir, "48"))
-		if not path.exists(path.join(tempDir, "32")):
-			makedirs(path.join(tempDir, "32"))
+		if not path.exists(path.join(TEMP_DIR, "48")):
+			makedirs(path.join(TEMP_DIR, "48"))
+		if not path.exists(path.join(TEMP_DIR, "32")):
+			makedirs(path.join(TEMP_DIR, "32"))
 
 		url = app["icon_static"] if "icon_static" in app else (app["icon"] if "icon" in app else app["image"] if "image" in app else "")
 		file = None
@@ -649,7 +652,7 @@ def process_app_entry(app: Dict[str, Any], fp: str, icon_idx: int, github_sessio
 				app["icon_index"] = iconIndex
 
 			with Image.open(file) as img:
-				img, color = saveIcon(img, tempDir, iconIndex, True)
+				img, color = saveIcon(img, iconIndex, True)
 				if "color" not in app:
 					app["color"] = color
 				if "color_bg" not in app:
@@ -659,10 +662,10 @@ def process_app_entry(app: Dict[str, Any], fp: str, icon_idx: int, github_sessio
 					app["color_bg"] = "#%02x%02x%02x" % (*[round(x * 255) for x in hsv_to_rgb(*hsv)],)
 
 			if "icon" in app and app["icon"].endswith(".bmp"):
-				copyfile(path.join(tempDir, "48", f"{iconIndex}.png"), path.join(DOCS_DIR, "assets", "images", "icons", f"{format_to_web_name(app['title'])}.png"))
+				copyfile(path.join(TEMP_DIR, "48", f"{iconIndex}.png"), path.join(DOCS_DIR, "assets", "images", "icons", f"{format_to_web_name(app['title'])}.png"))
 				app["icon"] = f"https://db.universal-team.net/assets/images/icons/{format_to_web_name(app['title'])}.png"
 			elif "icon_static" not in app and "icon" in app and app["icon"].endswith(".gif"):
-				copyfile(path.join(tempDir, "48", f"{iconIndex}.png"), path.join(DOCS_DIR, "assets", "images", "icons", f"{format_to_web_name(app['title'])}.png"))
+				copyfile(path.join(TEMP_DIR, "48", f"{iconIndex}.png"), path.join(DOCS_DIR, "assets", "images", "icons", f"{format_to_web_name(app['title'])}.png"))
 				app["icon_static"] = f"https://db.universal-team.net/assets/images/icons/{format_to_web_name(app['title'])}.png"
 
 			if "image" in app and app["image"].endswith(".bmp"):
@@ -761,7 +764,6 @@ def main(sourceFolder, ghToken: str, webhook_url: str) -> None:
 	output = []
 	iconIndex = 0
 	gh_name_cache = {}  # GitHub name cache
-	tempDir = path.join(path.dirname(sourceFolder), "temp")
 
 	# Create headers and a session for github specific requests
 	github_headers = {"Accept": "application/vnd.github+json",
@@ -919,7 +921,7 @@ def main(sourceFolder, ghToken: str, webhook_url: str) -> None:
 			if app["title"] == "RetroArch":
 				entry._entry["info"]["description"] += "\n\nCores must be downloaded from their separate UniStore, which can be added in settings."
 				if not PRIORITY_MODE:
-					retroarchUniStore(tempDir)
+					retroarchUniStore()
 
 			unistore.append(entry)
 
@@ -928,14 +930,14 @@ def main(sourceFolder, ghToken: str, webhook_url: str) -> None:
 	if not PRIORITY_MODE:
 		# Make tdx
 		with open(path.join(DOCS_DIR, "unistore", "universal-db.tdx"), "wb") as tdx:
-			img2tdx(("-gb -gB8 -gzl", *[f"{i}.png" for i in range(iconIndex)]), tdx, imgPath=path.join(tempDir, "32"))
+			img2tdx(("-gb -gB8 -gzl", *[f"{i}.png" for i in range(iconIndex)]), tdx, imgPath=path.join(TEMP_DIR, "32"))
 
 		# Make t3x
-		with open(path.join(tempDir, "48", "icons.t3s"), "w", encoding="utf8") as file:
+		with open(path.join(TEMP_DIR, "48", "icons.t3s"), "w", encoding="utf8") as file:
 			file.write("--atlas -f rgba -z auto\n\n")
 			for i in range(iconIndex):
 				file.write(f"{i}.png\n")
-		system(f"tex3ds -i {path.join(tempDir, '48', 'icons.t3s')} -o {path.join(DOCS_DIR, 'unistore', 'universal-db.t3x')}")
+		system(f"tex3ds -i {path.join(TEMP_DIR, '48', 'icons.t3s')} -o {path.join(DOCS_DIR, 'unistore', 'universal-db.t3x')}")
 
 	# Write UniStore and metadata
 	unistore.save(path.join(DOCS_DIR, "unistore", "universal-db.unistore"), path.join(DOCS_DIR, "unistore", "universal-db-info.json"))
