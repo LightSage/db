@@ -516,7 +516,9 @@ def create_web_file(app: Dict[str, Any]):
 		web["updated"] = "---"
 	for sys in web["systems"]:
 		if "title" in web:
-			with open(path.join(DOCS_DIR, f"_{webName(sys)}", f"{webName(web['title'])}.md"), "w", encoding="utf8") as file:
+			directory = os.path.join(DOCS_DIR, f"_{webName(sys)}")
+			os.makedirs(directory, exist_ok=True)
+			with open(os.path.join(directory, f"{webName(web['title'])}.md"), "w", encoding="utf8") as file:
 				file.write(f"---\n{yaml.dump(web, sort_keys=True, allow_unicode=True)}---\n")
 				if "long_description" in app:
 					file.write(app["long_description"])
