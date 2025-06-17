@@ -8,7 +8,7 @@ from dateutil import parser
 from unidecode import unidecode
 
 
-def create_traceback(exc: Exception):
+def format_traceback(exc: Exception):
 	etype = type(exc)
 	trace = exc.__traceback__
 

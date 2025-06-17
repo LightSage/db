@@ -12,7 +12,7 @@ import requests
 import yaml
 import contextlib
 import discord
-import traceback
+import functools
 
 from argparse import ArgumentParser, FileType
 from bs4 import BeautifulSoup
@@ -31,7 +31,7 @@ from textwrap import shorten
 from typing import Tuple
 from unidecode import unidecode
 from unistore import StoreEntry, UniStore
-from utils import create_traceback, was_recently_updated, get_matching_app, format_to_web_name, to_friendly_bytes
+from utils import format_traceback, was_recently_updated, get_matching_app, format_to_web_name, to_friendly_bytes
 
 DOWNLOAD_BLACKLIST = r"(\.3ds$|\.apk|\.appimage|\.dmg|\.exe|\.ipa|\.love|\.nro|\.opk|\.pkg|\.smdh|\.vpk|\.xz|armhf|elf|linux|macos|osx|PS3|PSP|switch|ubuntu|vita|wii|win|x86_64|xbox)"
 DOCS_DIR = None
@@ -213,10 +213,10 @@ def handle_gbatemp_app(r, app: Dict[str, Any]):
 	return app
 
 
-def handle_github_app(request: requests.Session, app: Dict[str, Any], names_cache):
-	api = request.get(f"https://api.github.com/repos/{app['github']}").json()
+def handle_github_app(github: GitHubAPI, app: Dict[str, Any]):
+	api = github.session.get(f"https://api.github.com/repos/{app['github']}").json()
 	assert "message" not in api, app["github"] + " API Error: " + api["message"]
-	releases = request.get(f"https://api.github.com/repos/{app['github']}/releases").json()
+	releases = github.session.get(f"https://api.github.com/repos/{app['github']}/releases").json()
 	assert "message" not in releases, app["github"] + " API Error: " + releases["message"]
 	release = None
 	prerelease = None
@@ -236,7 +236,7 @@ def handle_github_app(request: requests.Session, app: Dict[str, Any], names_cach
 
 	# If no actual release found on page 1, try /latest
 	if not release:
-		release = request.get(f"https://api.github.com/repos/{app['github']}/releases/latest").json()
+		release = github.session.get(f"https://api.github.com/repos/{app['github']}/releases/latest").json()
 		if "message" in release and release["message"] == "Not Found":
 			release = None
 
@@ -244,14 +244,7 @@ def handle_github_app(request: requests.Session, app: Dict[str, Any], names_cach
 		app["title"] = api["name"]
 
 	if "author" not in app:
-		username = api["owner"]["login"]
-		if username in names_cache:
-			username = names_cache[username]
-		else:
-			user = request.get(f"https://api.github.com/users/{username}").json()
-			assert "message" not in user, app["github"] + " API Error: " + user["message"]
-			names_cache[username] = user["name"] if user["name"] is not None else username
-			username = names_cache[username]
+		username = github.get_username(api['owner']['login'])
 		app["author"] = username
 
 	if "description" not in app and api["description"] != "" and api["description"] is not None:
@@ -297,7 +290,7 @@ def handle_github_app(request: requests.Session, app: Dict[str, Any], names_cach
 
 		if "update_notes" not in app and release["body"] != "" and release["body"] is not None:
 			app["update_notes_md"] = release["body"].replace("\r\n", "\n")
-			app["update_notes"] = request.post("https://api.github.com/markdown", json={"text": release["body"], "mode": "gfm" if "github" in app else "markdown", "context": app["github"] if "github" in app else None}).text
+			app["update_notes"] = github.format_markdown(release["body"], context=app["github"])
 			app["update_notes"] = re.sub(r'<a target="_blank" rel="noopener noreferrer" href="https:\/\/private-user-images.githubusercontent\.com.*?<\/a>', "", app["update_notes"])
 
 		if "updated" not in app:
@@ -345,7 +338,7 @@ def handle_github_app(request: requests.Session, app: Dict[str, Any], names_cach
 
 			if "update_notes" not in app["prerelease"] and prerelease["body"] != "" and prerelease["body"] is not None:
 				app["prerelease"]["update_notes_md"] = prerelease["body"].replace("\r\n", "\n")
-				app["prerelease"]["update_notes"] = request.post("https://api.github.com/markdown", json={"text": prerelease["body"], "mode": "gfm" if "github" in app else "markdown", "context": app["github"] if "github" in app else None}).text
+				app["prerelease"]["update_notes"] = github.format_markdown(prerelease["body"], context=app["github"])
 				app["prerelease"]["update_notes"] = re.sub(r'<a target="_blank" rel="noopener noreferrer" href="https:\/\/private-user-images.githubusercontent\.com.*?<\/a>', "", app["prerelease"]["update_notes"])
 
 				if "update_notes" not in app:
@@ -502,7 +495,7 @@ def create_error_report(e, app_name, webhook: discord.SyncWebhook):
 	webhook.send(embeds=[embed])
 
 
-def fetch_app_data(app: Dict[str, Any], github_session, github_cache):
+def fetch_app_data(app: Dict[str, Any], github_session: GitHubAPI, old_data):
 	if "gbatemp" in app:
 		print("GBAtemp Download Center")
 		r = requests.get(f"https://gbatemp.net/download/{app['gbatemp']}/")
@@ -514,7 +507,7 @@ def fetch_app_data(app: Dict[str, Any], github_session, github_cache):
 
 	if "github" in app:
 		print("GitHub --", app["github"])
-		app = handle_github_app(github_session, app, github_cache)
+		app = handle_github_app(github_session, app)
 
 	if "bitbucket" in app:
 		print("Bitbucket --", app["bitbucket"]["repo"])
@@ -527,17 +520,16 @@ def fetch_app_data(app: Dict[str, Any], github_session, github_cache):
 	return app
 
 
-def process_app_entry(app: Dict[str, Any], fp: str, icon_idx: int, github_session, github_cache, old_data,
+def process_app_entry(app: Dict[str, Any], fp: str, icon_idx: int, github_api: GitHubAPI, old_data,
 					  *, webhook=None) -> Optional[Tuple[Dict[str, Any], int]]:
 	iconIndex = icon_idx
 	app["stars"] = 0
 	oldData = old_data
 
 	try:
-		app = fetch_app_data(app, github_session, github_cache)
+		app = fetch_app_data(app, github_api, old_data)
 	except Exception as e:
-		trace = create_traceback(e)
-		print(trace)
+		trace = format_traceback(e)
 		if webhook:
 			title = app['title'] if "title" in app else fp
 			create_error_report(trace, title, webhook)
@@ -561,7 +553,8 @@ def process_app_entry(app: Dict[str, Any], fp: str, icon_idx: int, github_sessio
 		if "update_notes_md" in app:
 			app["update_notes_md"] = eval(app["update_notes_md"])
 			if "update_notes" not in app:
-				app["update_notes"] = github_session.post("https://api.github.com/markdown", json={"text": app["update_notes_md"], "mode": "gfm" if "github" in app else "markdown", "context": app["github"] if "github" in app else None}).text
+				app["update_notes"] = github_api.format_markdown(app["update_notes_md"], mode="gfm" if "github" in app else "markdown",
+													 			 context=app["github"] if "github" in app else None)
 
 	# If no markdown notes, generate from HTML
 	if "update_notes_md" not in app and "update_notes" in app:
@@ -587,7 +580,9 @@ def process_app_entry(app: Dict[str, Any], fp: str, icon_idx: int, github_sessio
 
 	# Format update notes with GitHub's API
 	if "update_notes_md" in app and "update_notes" not in app:
-		app["update_notes"] = github_session.post("https://api.github.com/markdown", json={"text": app["update_notes_md"], "mode": "gfm" if "github" in app else "markdown", "context": app["github"] if "github" in app else None}).text
+		app["update_notes"] = github_api.format_markdown(app["update_notes_md"],
+												   		 mode="gfm" if "github" in app else "markdown",
+												   		 context=app["github"] if "github" in app else None)
 
 	# Get missing download sizes
 	if "downloads" in app:
@@ -748,6 +743,39 @@ def process_app_entry(app: Dict[str, Any], fp: str, icon_idx: int, github_sessio
 	return app, iconIndex
 
 
+class GitHubAPI:
+	def __init__(self, *, token=None):
+		self.session = requests.Session()
+
+		github_headers = {"Accept": "application/vnd.github+json",
+					  	  "X-GitHub-Api-Version": "2022-11-28"}
+		if token:
+			github_headers["Authorization"] = f"Bearer {token}"
+		self.session.headers.update(github_headers)
+
+	@functools.cache
+	def get_username(self, username: str):
+		resp = self.session.get(f"https://api.github.com/users/{username}")
+		if resp.status_code != 200:
+			resp.raise_for_status()
+			return
+
+		r = resp.json()
+		# Sometimes a display name is not set so we fallback to login name
+		return r['name'] or r['login']
+	
+	def format_markdown(self, content: str, *, mode: str = "markdown", context: Optional[str]) -> str:
+		data = {"text": content, "mode": mode}
+		if context:
+			data['context'] = context
+
+		resp = self.session.post("https://api.github.com/markdown", json=data)
+		if resp.status_code != 200:
+			resp.raise_for_status()
+
+		return resp.text
+
+
 def main(sourceFolder, ghToken: str, webhook_url: str) -> None:
 	# Load app list json
 	source: List[Tuple[str, Dict[str, Any]]] = []
@@ -763,16 +791,7 @@ def main(sourceFolder, ghToken: str, webhook_url: str) -> None:
 
 	output = []
 	iconIndex = 0
-	gh_name_cache = {}  # GitHub name cache
-
-	# Create headers and a session for github specific requests
-	github_headers = {"Accept": "application/vnd.github+json",
-					  "X-GitHub-Api-Version": "2022-11-28"}
-	if ghToken:
-		github_headers["Authorization"] = f"Bearer {ghToken}"
-
-	gh_req = requests.Session()
-	gh_req.headers.update(github_headers)
+	github = GitHubAPI(token=ghToken)
 
 	unistore = UniStore(
 		"Universal-DB",
@@ -805,7 +824,7 @@ def main(sourceFolder, ghToken: str, webhook_url: str) -> None:
 
 		if doUpdate:
 			try:
-				app, iconIndex = process_app_entry(app, fp, iconIndex, gh_req, gh_name_cache, oldData, webhook=webhook)
+				app, iconIndex = process_app_entry(app, fp, iconIndex, github, oldData, webhook=webhook)
 			except Exception:
 				continue
 
@@ -962,8 +981,8 @@ if __name__ == "__main__":
 	try:
 		main(args.source, args.token, args.error_webhook)
 	except Exception as e:
-		trace = create_traceback(e)
-		print(trace)
+		trace = format_traceback(e)
 		if args.error_webhook:
 			webhook = discord.SyncWebhook.from_url(args.error_webhook)
 			create_error_report(trace, None, webhook)
+		raise e
