@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Tuple, Optional, TextIO
 
 import json
 import os
@@ -13,6 +13,8 @@ import yaml
 import contextlib
 import discord
 import functools
+import click
+import pathlib
 
 from argparse import ArgumentParser, FileType
 from bs4 import BeautifulSoup
@@ -34,7 +36,7 @@ from unistore import StoreEntry, UniStore
 from utils import format_traceback, was_recently_updated, get_matching_app, format_to_web_name, to_friendly_bytes
 
 DOWNLOAD_BLACKLIST = r"(\.3ds$|\.apk|\.appimage|\.dmg|\.exe|\.ipa|\.love|\.nro|\.opk|\.pkg|\.smdh|\.vpk|\.xz|armhf|elf|linux|macos|osx|PS3|PSP|switch|ubuntu|vita|wii|win|x86_64|xbox)"
-DOCS_DIR = None
+DOCS_DIR: Optional[pathlib.Path] = None
 PRIORITY_MODE = True
 TEMP_DIR = path.join(path.dirname("apps"), "temp")
 
@@ -486,6 +488,21 @@ def create_web_file(app: Dict[str, Any]):
 	return web
 
 
+def handle_screenshots(app_title: str, docs_dir: pathlib.Path):
+	screenshots = []
+	screenshots_path = docs_dir.joinpath("assets", "images", "screenshots", format_to_web_name(app_title))
+	if screenshots_path.exists():
+		dirlist = sorted(screenshots_path.iterdir())
+		for screenshot in dirlist:
+			if screenshot.suffix.lower()[1:] in ["png", "gif", "jpg", "peg", "iff", "bmp"]:
+				screenshots.append({
+					"url": f"https://db.universal-team.net/assets/images/screenshots/{format_to_web_name(app_title)}/{screenshot.name}",
+					"description": screenshot.stem.capitalize().replace("-", " ")
+				})
+
+	return screenshots
+
+
 def create_error_report(e, app_name, webhook: discord.SyncWebhook):
 	embed = discord.Embed(title="Universal-DB Exception Occurred")
 	embed.description = f"```py\n{e}```"
@@ -565,31 +582,28 @@ def process_app_entry(app: Dict[str, Any], fp: str, icon_idx: int, github_api: G
 		if item in app:
 			app[item] = requote_uri(app[item])
 
-	# Check for screenshots
-	if path.exists(path.join(DOCS_DIR, "assets", "images", "screenshots", format_to_web_name(app["title"]))):
-		if "screenshots" not in app:
-			app["screenshots"] = []
-		dirlist = listdir(path.join(DOCS_DIR, "assets", "images", "screenshots", format_to_web_name(app["title"])))
-		dirlist.sort()
-		for screenshot in dirlist:
-			if screenshot[-3:] in ["png", "gif", "jpg", "peg", "iff", "bmp"]:
-				app["screenshots"].append({
-					"url": f"https://db.universal-team.net/assets/images/screenshots/{format_to_web_name(app['title'])}/{screenshot}",
-					"description": screenshot[:screenshot.rfind(".")].capitalize().replace("-", " ")
-				})
-
 	# Format update notes with GitHub's API
 	if "update_notes_md" in app and "update_notes" not in app:
 		app["update_notes"] = github_api.format_markdown(app["update_notes_md"],
 												   		 mode="gfm" if "github" in app else "markdown",
 												   		 context=app["github"] if "github" in app else None)
 
+	# Prematurely stop here, if no DOCS_DIR.
+	# CLI normally checks for DOCS_DIR, if this is the all command
+	if not DOCS_DIR:
+		return
+
+	# Handle app screenshots
+	screenshots = handle_screenshots(app["title"], DOCS_DIR)
+	app["screenshots"] = screenshots
+
 	# Get missing download sizes
 	if "downloads" in app:
 		for download in app["downloads"]:
 			if "size" not in app["downloads"][download]:
 				if app["downloads"][download]["url"][:30] == "https://db.universal-team.net/":
-					app["downloads"][download]["size"] = path.getsize(path.join(DOCS_DIR, app['downloads'][download]['url'][30:]))
+					download_path = DOCS_DIR.joinpath(app['downloads'][download]['url'][30:])
+					app["downloads"][download]["size"] = download_path.stat().st_size
 					app["downloads"][download]["size_str"] = to_friendly_bytes(app["downloads"][download]["size"])
 				else:
 					r = requests.head(app["downloads"][download]["url"], allow_redirects=True)
@@ -599,10 +613,10 @@ def process_app_entry(app: Dict[str, Any], fp: str, icon_idx: int, github_api: G
 
 	# Check for local icon / image
 	for ext in (".png", ".gif"):
-		if "icon" not in app and path.exists(path.join(DOCS_DIR, "assets", "images", "icons", format_to_web_name(app['title']) + ext)):
+		if "icon" not in app and DOCS_DIR.joinpath("assets", "images", "icons", format_to_web_name(app['title']) + ext).exists():
 			app["icon"] = f"https://db.universal-team.net/assets/images/icons/{format_to_web_name(app['title'])}{ext}"
 
-	if "image" not in app and path.exists(path.join(DOCS_DIR, "assets", "images", "images", f"{format_to_web_name(app['title'])}.png")):
+	if "image" not in app and DOCS_DIR.joinpath("assets", "images", "images", f"{format_to_web_name(app['title'])}.png").exists():
 		app["image"] = f"https://db.universal-team.net/assets/images/images/{format_to_web_name(app['title'])}.png"
 	elif "image" not in app and "icon" in app:
 		app["image"] = app["icon"]
@@ -776,17 +790,17 @@ class GitHubAPI:
 		return resp.text
 
 
-def main(sourceFolder, ghToken: str, webhook_url: str) -> None:
+def process_from_folder(sourceFolder: pathlib.Path, ghToken: str, webhook_url: str) -> None:
 	# Load app list json
 	source: List[Tuple[str, Dict[str, Any]]] = []
-	for item in listdir(sourceFolder):
-		fp = path.join(sourceFolder, item)
+	for item in sourceFolder.iterdir():
+		fp = sourceFolder.joinpath(item)
 		with open(fp, encoding="utf8") as f:
-			source.append((fp, json.load(f)))
+			source.append((str(fp), json.load(f)))
 
 	# Old data json
 	oldData = None
-	with open(path.join(DOCS_DIR, "data", "full.json"), "r", encoding="utf8") as file:
+	with open(sourceFolder.joinpath("data", "full.json"), "r", encoding="utf8") as file:
 		oldData = json.load(file)
 
 	output = []
@@ -966,23 +980,62 @@ def main(sourceFolder, ghToken: str, webhook_url: str) -> None:
 		json.dump(output, file, sort_keys=True, ensure_ascii=False)
 
 
+def check_for_docs_dir(path: str) -> pathlib.Path:
+	docs_path = pathlib.Path(path)
+	exists = docs_path.exists()
+	if not exists:
+		docs_path = click.prompt(text="Unable to find the docs directory, please type a directory in.\nControl-C to cancel this!",
+								 type=click.Path(exists=True, file_okay=False))
+	
+	return docs_path
+
+
+@click.group()
+def main_entry_group():
+	click.help_option()
+
+@main_entry_group.command()
+@click.argument("source", default="apps", type=click.Path(exists=True, file_okay=False)) #  help="The folder to find apps in")
+@click.argument("docs", default="../docs", type=click.Path(file_okay=False)) #  help="The location to output documentation to")
+@click.option("--github-token", help="A GitHub API token", envvar="TOKEN")
+@click.option("--priority", "-p", is_flag=True, default=True, help="Skips apps that are not updated within the last 30 days")
+@click.option("--error-webhook", "-er", type=str, envvar="WEBHOOK_URL", default=None)
+def all_command(source: str, docs: str, github_token, priority: bool, error_webhook: str):
+	"""Processes every app in a given directory"""
+	docs_path = check_for_docs_dir(docs)
+	global DOCS_DIR
+	DOCS_DIR = docs_path
+	source_path = pathlib.Path(source)
+
+	global PRIORITY_MODE
+	PRIORITY_MODE = priority
+
+	click.secho("Found the source directory and docs directory", fg='green')
+	click.echo(f"Source: {source_path.resolve()}\nDocs: {docs_path.resolve()}")
+	process_from_folder(source_path, github_token, error_webhook)
+
+
+@main_entry_group.command()
+@click.argument("app", type=click.File(mode="r"))
+@click.option("--github-token", help="A GitHub API token", envvar="TOKEN")
+def single_app_test_command(app: TextIO, github_token: Optional[str]):
+	"""Tests a singular app if it is fetchable and workable with for UDB"""
+	api = GitHubAPI(token=github_token)
+	content = json.loads(app.read())
+	path = pathlib.Path("../docs")
+	exists = path.exists()
+	if not exists:
+		click.secho("Unable to find the docs directory, proceeding...", fg='yellow')
+	else:
+		global DOCS_DIR
+		DOCS_DIR = path
+
+	entry = process_app_entry(content, app.name, 0, api, {})
+	if not entry:
+		click.echo("Unable to process the app!")
+		return
+
+	click.echo(json.dumps(entry[0], indent=4))
+
 if __name__ == "__main__":
-	argParser = ArgumentParser(description="Generates the Universal-DB website and UniStores from a JSON")
-	argParser.add_argument("source", metavar="apps", type=str, help="source JSON folder")
-	argParser.add_argument("docs", metavar=DOCS_DIR, type=str, help="location to output to")
-	argParser.add_argument("--token", "-t", type=str, help="GitHub API token (to get around rate limit", default=os.environ.get('TOKEN'))
-	argParser.add_argument("--priority", "-p", action="store_true", help="skips all apps not marked priority/updated within 30 days")
-	argParser.add_argument("--error_webhook", "-er", type=str, help="Notifies a Discord channel if an exception occurred during the script", default=os.environ.get('WEBHOOK_URL'))
-
-	args = argParser.parse_args()
-	DOCS_DIR = args.docs
-	PRIORITY_MODE = args.priority
-
-	try:
-		main(args.source, args.token, args.error_webhook)
-	except Exception as e:
-		trace = format_traceback(e)
-		if args.error_webhook:
-			webhook = discord.SyncWebhook.from_url(args.error_webhook)
-			create_error_report(trace, None, webhook)
-		raise e
+	main_entry_group()
