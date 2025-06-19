@@ -55,7 +55,11 @@ def saveIcon(img: ImageFile, index: int, ds: bool, *, location: Optional[str] = 
 		img = img.convert("RGBA")
 
 	img.thumbnail((48, 48))
-	img.save(loc_path.joinpath("48", f"{index}.png"))
+	forty_eight = loc_path / "48"
+	if not forty_eight.exists():
+		forty_eight.mkdir(parents=True, exist_ok=True)
+
+	img.save((forty_eight / f"{index}.png"))
 
 	if ds:
 		imgDS = img.copy()
@@ -66,7 +70,10 @@ def saveIcon(img: ImageFile, index: int, ds: bool, *, location: Optional[str] = 
 		data[...][transparent.T] = (0xFF, 0, 0xFF, 0xFF)
 		imgDS = Image.fromarray(data)
 		imgDS = imgDS.quantize()
-		imgDS.save(loc_path.joinpath("32", f"{index}.png"))
+		thirty_two = loc_path / "48"
+		if not thirty_two.exists():
+			thirty_two.mkdir(parents=True, exist_ok=True)
+		imgDS.save((thirty_two / f"{index}.png"))
 
 	color = img.copy()
 	color.thumbnail((1, 1))
@@ -547,6 +554,8 @@ def process_app_entry(app: Dict[str, Any], fp: str, icon_idx: int, github_api: G
 		if webhook:
 			title = app['title'] if "title" in app else fp
 			create_error_report(trace, title, webhook)
+
+		click.secho(trace, fg="red")
 		raise e
 
 	# Process format strings in downloads if needed
@@ -1009,7 +1018,7 @@ SCRIPT_DIR = pathlib.Path(__file__).parent.resolve()
 @click.argument("source", default=str(SCRIPT_DIR / ("apps")), type=click.Path(exists=True, file_okay=False)) #  help="The folder to find apps in")
 @click.argument("docs", default=str(SCRIPT_DIR.parent / "docs"), type=click.Path(file_okay=False)) #  help="The location to output documentation to")
 @click.option("--github-token", help="A GitHub API token", envvar="TOKEN")
-@click.option("--priority", "-p", is_flag=True, default=True, help="Skips apps that are not updated within the last 30 days")
+@click.option("--priority", "-p", is_flag=True, default=False, help="Skips apps that are not updated within the last 30 days")
 @click.option("--error-webhook", "-er", type=str, envvar="WEBHOOK_URL", default=None)
 def all_command(source: str, docs: str, github_token, priority: bool, error_webhook: str):
 	"""Processes every app in a given directory"""
@@ -1024,6 +1033,17 @@ def all_command(source: str, docs: str, github_token, priority: bool, error_webh
 	click.secho("Found the source directory and docs directory", fg='green')
 	click.echo(f"Source: {source_path.resolve()}\nDocs: {docs_path.resolve()}\nPriority Mode: {PRIORITY_MODE}")
 	process_from_folder(source_path, github_token, error_webhook)
+
+
+@main_entry_group.command()
+@click.argument("docs", default=str(SCRIPT_DIR.parent / "docs"), type=click.Path(file_okay=False))
+def gen_retroarch(docs):
+	"""Generates the RetroArch Unistore ONLY"""
+	docs_path = check_for_docs_dir(docs)
+	global DOCS_DIR
+	DOCS_DIR = docs_path
+
+	retroarchUniStore()
 
 
 @main_entry_group.command()
