@@ -1,35 +1,34 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from typing import Dict, Any, List, Tuple, Optional, TextIO
-
+import functools
 import json
+import pathlib
+import re
+from colorsys import hsv_to_rgb, rgb_to_hsv
+from io import BytesIO
+from os import system
+from shutil import copyfile
+from textwrap import shorten
+from typing import Any, Dict, List, Optional, TextIO, Tuple
+
+import click
+import discord
 import numpy
 import qrcode
-import re
 import requests
 import yaml
-import contextlib
-import discord
-import functools
-import click
-import pathlib
-
 from bs4 import BeautifulSoup
-from colorsys import hsv_to_rgb, rgb_to_hsv
 from dateutil import parser
-from img2tdx import img2tdx
-from io import BytesIO
 from markdownify import markdownify
-from os import system
 from PIL import Image, ImageDraw, ImageFile
 from PIL.PngImagePlugin import PngImageFile
 from requests.utils import requote_uri
-from shutil import copyfile
-from textwrap import shorten
-from typing import Tuple
+
+from img2tdx import img2tdx
 from unistore import StoreEntry, UniStore
-from utils import format_traceback, was_recently_updated, get_matching_app, format_to_web_name, to_friendly_bytes
+from utils import (format_to_web_name, format_traceback, get_matching_app,
+                   to_friendly_bytes, was_recently_updated)
 
 DOWNLOAD_BLACKLIST = r"(\.3ds$|\.apk|\.appimage|\.dmg|\.exe|\.ipa|\.love|\.nro|\.opk|\.pkg|\.smdh|\.vpk|\.xz|armhf|elf|linux|macos|osx|PS3|PSP|switch|ubuntu|vita|wii|win|x86_64|xbox)"
 DOCS_DIR: Optional[pathlib.Path] = None
