@@ -977,7 +977,7 @@ def process_from_folder(sourceFolder: pathlib.Path, ghToken: str, webhook_url: s
 			file.write("--atlas -f rgba -z auto\n\n")
 			for i in range(iconIndex):
 				file.write(f"{i}.png\n")
-		system(f"tex3ds -i {str(TEMP_DIR.joinpath('48', 'icons.t3s'))} -o {DOCS_DIR.joinpath('unistore', 'universal-db.t3x')}")
+		system(f"tex3ds -i {str(TEMP_DIR.joinpath('48', 'icons.t3s'))} -o {str(DOCS_DIR.joinpath('unistore', 'universal-db.t3x'))}")
 
 	# Write UniStore and metadata
 	unistore.save(DOCS_DIR.joinpath("unistore", "universal-db.unistore"), DOCS_DIR.joinpath("unistore", "universal-db-info.json"))
@@ -1049,7 +1049,7 @@ def gen_retroarch(docs):
 @main_entry_group.command()
 @click.argument("app", type=click.File(mode="r"))
 @click.option("--github-token", help="A GitHub API token", envvar="TOKEN")
-def single_app_test_command(app: TextIO, github_token: Optional[str]):
+def app_test_command(app: TextIO, github_token: Optional[str]):
 	"""Tests a singular app if it is fetchable and workable with for UDB"""
 	api = GitHubAPI(token=github_token)
 	content = json.loads(app.read())
@@ -1064,6 +1064,7 @@ def single_app_test_command(app: TextIO, github_token: Optional[str]):
 	entry = process_app_entry(content, app.name, 0, api, {})
 	if not entry:
 		click.echo("Unable to process the app!")
+		exit(1)
 		return
 
 	click.echo(json.dumps(entry[0], indent=4))
