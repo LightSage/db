@@ -4,7 +4,6 @@ from __future__ import annotations
 from typing import Dict, Any, List, Tuple, Optional, TextIO
 
 import json
-import os
 import numpy
 import qrcode
 import re
@@ -16,33 +15,33 @@ import functools
 import click
 import pathlib
 
-from argparse import ArgumentParser, FileType
 from bs4 import BeautifulSoup
 from colorsys import hsv_to_rgb, rgb_to_hsv
-from datetime import datetime, timezone
 from dateutil import parser
 from img2tdx import img2tdx
 from io import BytesIO
 from markdownify import markdownify
-from os import listdir, makedirs, path, system
-from PIL import Image, ImageDraw
+from os import system
+from PIL import Image, ImageDraw, ImageFile
 from PIL.PngImagePlugin import PngImageFile
 from requests.utils import requote_uri
 from shutil import copyfile
 from textwrap import shorten
 from typing import Tuple
-from unidecode import unidecode
 from unistore import StoreEntry, UniStore
 from utils import format_traceback, was_recently_updated, get_matching_app, format_to_web_name, to_friendly_bytes
 
 DOWNLOAD_BLACKLIST = r"(\.3ds$|\.apk|\.appimage|\.dmg|\.exe|\.ipa|\.love|\.nro|\.opk|\.pkg|\.smdh|\.vpk|\.xz|armhf|elf|linux|macos|osx|PS3|PSP|switch|ubuntu|vita|wii|win|x86_64|xbox)"
 DOCS_DIR: Optional[pathlib.Path] = None
 PRIORITY_MODE = True
-TEMP_DIR = path.join(path.dirname("apps"), "temp")
+TEMP_DIR = pathlib.Path("./temp")
 
 
-def saveIcon(img: Image, index: int, ds: bool, *, location: Optional[str] = None) -> Tuple[PngImageFile, str]:
-	location = location or TEMP_DIR
+def saveIcon(img: ImageFile, index: int, ds: bool, *, location: Optional[str] = None) -> Tuple[PngImageFile, str]:
+	location = location or str(TEMP_DIR)
+	loc_path = pathlib.Path(location)
+	if not loc_path.exists():
+		loc_path.mkdir(parents=True)
 
 	if img.mode == "P":
 		pal = img.palette.palette
@@ -56,7 +55,7 @@ def saveIcon(img: Image, index: int, ds: bool, *, location: Optional[str] = None
 		img = img.convert("RGBA")
 
 	img.thumbnail((48, 48))
-	img.save(path.join(location, "48", f"{index}.png"))
+	img.save(loc_path.joinpath("48", f"{index}.png"))
 
 	if ds:
 		imgDS = img.copy()
@@ -67,7 +66,7 @@ def saveIcon(img: Image, index: int, ds: bool, *, location: Optional[str] = None
 		data[...][transparent.T] = (0xFF, 0, 0xFF, 0xFF)
 		imgDS = Image.fromarray(data)
 		imgDS = imgDS.quantize()
-		imgDS.save(path.join(location, "32", f"{index}.png"))
+		imgDS.save(loc_path.joinpath("32", f"{index}.png"))
 
 	color = img.copy()
 	color.thumbnail((1, 1))
@@ -79,9 +78,6 @@ def retroarchUniStore() -> None:
 	"""Generates the RetroArch Cores UniStore"""
 
 	print("Generating RetroArch UniStore")
-
-	if not path.exists(path.join(TEMP_DIR, "ra", "48")):
-		makedirs(path.join(TEMP_DIR, "ra", "48"))
 
 	unistoreRA = UniStore(
 		"RetroArch Cores",
@@ -111,7 +107,7 @@ def retroarchUniStore() -> None:
 		img = requests.get(f"https://raw.githubusercontent.com/libretro/RetroArch/master/pkg/ctr/assets/{name[:-9]}.png")
 		if img.status_code == 200:
 			iconIndexRA += 1
-			saveIcon(Image.open(BytesIO(img.content)), iconIndexRA, False, location=path.join(TEMP_DIR, "ra"))
+			saveIcon(Image.open(BytesIO(img.content)), iconIndexRA, False, location=str(TEMP_DIR.joinpath("ra")))
 
 		notes = ""
 		if "description" in info and len(info["description"]) > 200:
@@ -137,13 +133,13 @@ def retroarchUniStore() -> None:
 		unistoreRA.append(entry)
 
 	# Make t3x
-	with open(path.join(TEMP_DIR, "ra", "48", "icons.t3s"), "w", encoding="utf8") as file:
+	with TEMP_DIR.joinpath("ra", "48", "icons.t3s").open("w", encoding="utf8") as file:
 		file.write("--atlas -f rgba -z auto\n\n")
 		for i in range(iconIndexRA):
 			file.write(f"{i}.png\n")
-	system(f"tex3ds -i {path.join(TEMP_DIR, 'ra', '48', 'icons.t3s')} -o {path.join(DOCS_DIR, 'unistore', 'retroarch.t3x')}")
+	system(f"tex3ds -i {TEMP_DIR.joinpath('ra', '48', 'icons.t3s')} -o {DOCS_DIR.joinpath('unistore', 'retroarch.t3x')}")
 
-	unistoreRA.save(path.join(DOCS_DIR, "unistore", "retroarch.unistore"))
+	unistoreRA.save(DOCS_DIR.joinpath("unistore", "retroarch.unistore"))
 
 
 def handle_gbatemp_app(r, app: Dict[str, Any]):
@@ -292,7 +288,7 @@ def handle_github_app(github: GitHubAPI, app: Dict[str, Any]):
 
 		if "update_notes" not in app and release["body"] != "" and release["body"] is not None:
 			app["update_notes_md"] = release["body"].replace("\r\n", "\n")
-			app["update_notes"] = github.format_markdown(release["body"], context=app["github"])
+			app["update_notes"] = github.format_markdown(release["body"], mode="gfm", context=app["github"])
 			app["update_notes"] = re.sub(r'<a target="_blank" rel="noopener noreferrer" href="https:\/\/private-user-images.githubusercontent\.com.*?<\/a>', "", app["update_notes"])
 
 		if "updated" not in app:
@@ -340,7 +336,8 @@ def handle_github_app(github: GitHubAPI, app: Dict[str, Any]):
 
 			if "update_notes" not in app["prerelease"] and prerelease["body"] != "" and prerelease["body"] is not None:
 				app["prerelease"]["update_notes_md"] = prerelease["body"].replace("\r\n", "\n")
-				app["prerelease"]["update_notes"] = github.format_markdown(prerelease["body"], context=app["github"])
+				app["prerelease"]["update_notes"] = github.format_markdown(prerelease["body"], mode="gfm",
+															   context=app["github"])
 				app["prerelease"]["update_notes"] = re.sub(r'<a target="_blank" rel="noopener noreferrer" href="https:\/\/private-user-images.githubusercontent\.com.*?<\/a>', "", app["prerelease"]["update_notes"])
 
 				if "update_notes" not in app:
@@ -480,7 +477,7 @@ def create_web_file(app: Dict[str, Any]):
 		web["updated"] = "---"
 	for sys in web["systems"]:
 		if "title" in web:
-			with open(path.join(DOCS_DIR, f"_{format_to_web_name(sys)}", f"{format_to_web_name(web['title'])}.md"), "w", encoding="utf8") as file:
+			with open(DOCS_DIR.joinpath(f"_{format_to_web_name(sys)}", f"{format_to_web_name(web['title'])}.md"), "w", encoding="utf8") as file:
 				file.write(f"---\n{yaml.dump(web, sort_keys=True, allow_unicode=True)}---\n")
 				if "long_description" in app:
 					file.write(app["long_description"])
@@ -500,7 +497,7 @@ def handle_screenshots(app_title: str, docs_dir: pathlib.Path):
 					"description": screenshot.stem.capitalize().replace("-", " ")
 				})
 
-	return screenshots
+	return screenshots or None
 
 
 def create_error_report(e, app_name, webhook: discord.SyncWebhook):
@@ -514,24 +511,24 @@ def create_error_report(e, app_name, webhook: discord.SyncWebhook):
 
 def fetch_app_data(app: Dict[str, Any], github_session: GitHubAPI, old_data):
 	if "gbatemp" in app:
-		print("GBAtemp Download Center")
+		click.echo("GBAtemp Download Center")
 		r = requests.get(f"https://gbatemp.net/download/{app['gbatemp']}/")
 		if r.status_code != 200:
-			print(f"Error {r.status_code:d}, using old data!")
+			click.secho(f"Error {r.status_code:d}, using old data!", fg="yellow")
 			app = list(filter(lambda x: "gbatemp" in x and x["gbatemp"] == app["gbatemp"], old_data))[0]
 		else:
 			app = handle_gbatemp_app(r, app)
 
 	if "github" in app:
-		print("GitHub --", app["github"])
+		click.echo(f'GitHub -- {app["github"]}')
 		app = handle_github_app(github_session, app)
 
 	if "bitbucket" in app:
-		print("Bitbucket --", app["bitbucket"]["repo"])
+		click.echo(f'Bitbucket -- {app["bitbucket"]["repo"]}')
 		app = handle_bitbucket_app(app)
 
 	if "gitlab" in app:
-		print("Gitlab --", app["gitlab"])
+		click.echo(f'GitLab -- {app["gitlab"]}')
 		app = handle_gitlab_app(app)
 	
 	return app
@@ -595,7 +592,8 @@ def process_app_entry(app: Dict[str, Any], fp: str, icon_idx: int, github_api: G
 
 	# Handle app screenshots
 	screenshots = handle_screenshots(app["title"], DOCS_DIR)
-	app["screenshots"] = screenshots
+	if screenshots:
+		app["screenshots"] = screenshots
 
 	# Get missing download sizes
 	if "downloads" in app:
@@ -628,7 +626,7 @@ def process_app_entry(app: Dict[str, Any], fp: str, icon_idx: int, github_api: G
 	# Get image size
 	if "image_length" not in app and "image" in app:
 		if app["image"][:30] == "https://db.universal-team.net/":
-			app["image_length"] = path.getsize(path.join(DOCS_DIR, app["image"][30:]))
+			app["image_length"] = DOCS_DIR.joinpath(app["image"][30:]).stat().st_size
 		else:
 			r = requests.head(app["image"], allow_redirects=True)
 			if r.status_code == 200 and "Content-Length" in r.headers:
@@ -637,21 +635,16 @@ def process_app_entry(app: Dict[str, Any], fp: str, icon_idx: int, github_api: G
 	# Make icon for UniStore and QR
 	img = None
 	if "icon" in app or "image" in app or "icon_static" in app:
-		if not path.exists(path.join(TEMP_DIR, "48")):
-			makedirs(path.join(TEMP_DIR, "48"))
-		if not path.exists(path.join(TEMP_DIR, "32")):
-			makedirs(path.join(TEMP_DIR, "32"))
-
 		url = app["icon_static"] if "icon_static" in app else (app["icon"] if "icon" in app else app["image"] if "image" in app else "")
 		file = None
 		if url[:30] == "https://db.universal-team.net/":
-			file = open(path.join(DOCS_DIR, url[30:]), "rb")
+			file = DOCS_DIR.joinpath(url[30:]).open("rb")
 		else:
 			r = requests.get(url)
 			if r.status_code == 200:
 				file = BytesIO(r.content)
 			else:
-				print(f"Error {r.status_code} downloading image!")
+				click.secho(f"Error {r.status_code} downloading image!", fg="red")
 
 		if file:
 			if PRIORITY_MODE:
@@ -671,10 +664,16 @@ def process_app_entry(app: Dict[str, Any], fp: str, icon_idx: int, github_api: G
 					app["color_bg"] = "#%02x%02x%02x" % (*[round(x * 255) for x in hsv_to_rgb(*hsv)],)
 
 			if "icon" in app and app["icon"].endswith(".bmp"):
-				copyfile(path.join(TEMP_DIR, "48", f"{iconIndex}.png"), path.join(DOCS_DIR, "assets", "images", "icons", f"{format_to_web_name(app['title'])}.png"))
+				# This is also duplicated
+				# TODO: Remove duplication
+				tmp = TEMP_DIR.joinpath("48", f"{iconIndex}.png")
+				to_src = DOCS_DIR.joinpath("assets", "images", "icons", f"{format_to_web_name(app['title'])}.png")
+				copyfile(tmp, to_src)
 				app["icon"] = f"https://db.universal-team.net/assets/images/icons/{format_to_web_name(app['title'])}.png"
 			elif "icon_static" not in app and "icon" in app and app["icon"].endswith(".gif"):
-				copyfile(path.join(TEMP_DIR, "48", f"{iconIndex}.png"), path.join(DOCS_DIR, "assets", "images", "icons", f"{format_to_web_name(app['title'])}.png"))
+				tmp = TEMP_DIR.joinpath("48", f"{iconIndex}.png")
+				to_src = DOCS_DIR.joinpath("assets", "images", "icons", f"{format_to_web_name(app['title'])}.png")
+				copyfile(tmp, to_src)
 				app["icon_static"] = f"https://db.universal-team.net/assets/images/icons/{format_to_web_name(app['title'])}.png"
 
 			if "image" in app and app["image"].endswith(".bmp"):
@@ -701,7 +700,7 @@ def process_app_entry(app: Dict[str, Any], fp: str, icon_idx: int, github_api: G
 							draw.text(((qr.width - img.width) // 2 - 2, (qr.height - img.height) // 2 + img.height), app["version"][:(img.width + 4) // 6], (0, 0, 0))
 						else:
 							draw.text(((qr.width - img.width) // 2, (qr.height - img.height) // 2 + img.height), app["version"][:img.width // 6], (0, 0, 0))
-				qr.save(path.join(DOCS_DIR, "assets", "images", "qr", f"{format_to_web_name(item)}.png"))
+				qr.save(DOCS_DIR.joinpath("assets", "images", "qr", f"{format_to_web_name(item)}.png"))
 				if "qr" not in app:
 					app["qr"] = {}
 				app["qr"][item] = f"https://db.universal-team.net/assets/images/qr/{format_to_web_name(item)}.png"
@@ -726,7 +725,7 @@ def process_app_entry(app: Dict[str, Any], fp: str, icon_idx: int, github_api: G
 						draw.text(((qr.width - img.width) // 2, (qr.height - img.height) // 2 - 10), "DSi", (246, 106, 10))
 					if "version" in app["prerelease"]:
 						draw.text(((qr.width - img.width) // 2, (qr.height - img.height) // 2 + img.height), app["prerelease"]["version"][:img.width // 6], (246, 106, 10))
-				qr.save(path.join(DOCS_DIR, "assets", "images", "qr", "prerelease", f"{format_to_web_name(item)}.png"))
+				qr.save(DOCS_DIR.joinpath("assets", "images", "qr", "prerelease", f"{format_to_web_name(item)}.png"))
 				if "qr" not in app["prerelease"]:
 					app["prerelease"]["qr"] = {}
 				app["prerelease"]["qr"][item] = f"https://db.universal-team.net/assets/images/qr/prerelease/{format_to_web_name(item)}.png"
@@ -749,7 +748,7 @@ def process_app_entry(app: Dict[str, Any], fp: str, icon_idx: int, github_api: G
 						draw.text(((qr.width - img.width) // 2 + 6, (qr.height - img.height) // 2 - 10), "DS", (0, 0, 192))
 					else:
 						draw.text(((qr.width - img.width) // 2, (qr.height - img.height) // 2 - 10), "DSi", (0, 0, 192))
-				qr.save(path.join(DOCS_DIR, "assets", "images", "qr", "nightly", f"{format_to_web_name(item)}.png"))
+				qr.save(DOCS_DIR.joinpath("assets", "images", "qr", "nightly", f"{format_to_web_name(item)}.png"))
 				if "qr" not in app["nightly"]:
 					app["nightly"]["qr"] = {}
 				app["nightly"]["qr"][item] = f"https://db.universal-team.net/assets/images/qr/nightly/{format_to_web_name(item)}.png"
@@ -794,13 +793,12 @@ def process_from_folder(sourceFolder: pathlib.Path, ghToken: str, webhook_url: s
 	# Load app list json
 	source: List[Tuple[str, Dict[str, Any]]] = []
 	for item in sourceFolder.iterdir():
-		fp = sourceFolder.joinpath(item)
-		with open(fp, encoding="utf8") as f:
-			source.append((str(fp), json.load(f)))
+		with item.open(encoding="utf8") as f:
+			source.append((str(item), json.load(f)))
 
 	# Old data json
 	oldData = None
-	with open(sourceFolder.joinpath("data", "full.json"), "r", encoding="utf8") as file:
+	with open(DOCS_DIR.joinpath("data", "full.json"), "r", encoding="utf8") as file:
 		oldData = json.load(file)
 
 	output = []
@@ -844,7 +842,7 @@ def process_from_folder(sourceFolder: pathlib.Path, ghToken: str, webhook_url: s
 
 		if "title" in app:
 			app["slug"] = format_to_web_name(app["title"])
-			print(app["slug"])
+			click.echo(app["slug"])
 
 			app["urls"] = []
 			for sys in app["systems"]:
@@ -958,25 +956,25 @@ def process_from_folder(sourceFolder: pathlib.Path, ghToken: str, webhook_url: s
 
 			unistore.append(entry)
 
-		print("=" * 80)
+		click.echo("=" * 80)
 
 	if not PRIORITY_MODE:
 		# Make tdx
-		with open(path.join(DOCS_DIR, "unistore", "universal-db.tdx"), "wb") as tdx:
-			img2tdx(("-gb -gB8 -gzl", *[f"{i}.png" for i in range(iconIndex)]), tdx, imgPath=path.join(TEMP_DIR, "32"))
+		with open(DOCS_DIR.joinpath("unistore", "universal-db.tdx"), "wb") as tdx:
+			img2tdx(("-gb -gB8 -gzl", *[f"{i}.png" for i in range(iconIndex)]), tdx, imgPath=TEMP_DIR.joinpath("32"))
 
 		# Make t3x
-		with open(path.join(TEMP_DIR, "48", "icons.t3s"), "w", encoding="utf8") as file:
+		with TEMP_DIR.joinpath("48", "icons.t3s").open("w", encoding="utf8") as file:
 			file.write("--atlas -f rgba -z auto\n\n")
 			for i in range(iconIndex):
 				file.write(f"{i}.png\n")
-		system(f"tex3ds -i {path.join(TEMP_DIR, '48', 'icons.t3s')} -o {path.join(DOCS_DIR, 'unistore', 'universal-db.t3x')}")
+		system(f"tex3ds -i {str(TEMP_DIR.joinpath('48', 'icons.t3s'))} -o {DOCS_DIR.joinpath('unistore', 'universal-db.t3x')}")
 
 	# Write UniStore and metadata
-	unistore.save(path.join(DOCS_DIR, "unistore", "universal-db.unistore"), path.join(DOCS_DIR, "unistore", "universal-db-info.json"))
+	unistore.save(DOCS_DIR.joinpath("unistore", "universal-db.unistore"), DOCS_DIR.joinpath("unistore", "universal-db-info.json"))
 
 	# Write output file
-	with open(path.join(DOCS_DIR, "data", "full.json"), "w", encoding="utf8") as file:
+	with DOCS_DIR.joinpath("data", "full.json").open("w", encoding="utf8") as file:
 		json.dump(output, file, sort_keys=True, ensure_ascii=False)
 
 
@@ -992,11 +990,24 @@ def check_for_docs_dir(path: str) -> pathlib.Path:
 
 @click.group()
 def main_entry_group():
+	# Prematurely make the temp directories, just in case.
+	pth = pathlib.Path("temp/")
+	if pth.exists() is False:
+		pth.mkdir()
+
+	if not pth.joinpath("48").exists():
+		pth.joinpath("48").mkdir()
+	if not pth.joinpath("32").exists():
+		pth.joinpath("32").mkdir()
+
 	click.help_option()
 
-@main_entry_group.command()
-@click.argument("source", default="apps", type=click.Path(exists=True, file_okay=False)) #  help="The folder to find apps in")
-@click.argument("docs", default="../docs", type=click.Path(file_okay=False)) #  help="The location to output documentation to")
+
+SCRIPT_DIR = pathlib.Path(__file__).parent.resolve()
+
+@main_entry_group.command(name="all")
+@click.argument("source", default=str(SCRIPT_DIR / ("apps")), type=click.Path(exists=True, file_okay=False)) #  help="The folder to find apps in")
+@click.argument("docs", default=str(SCRIPT_DIR.parent / "docs"), type=click.Path(file_okay=False)) #  help="The location to output documentation to")
 @click.option("--github-token", help="A GitHub API token", envvar="TOKEN")
 @click.option("--priority", "-p", is_flag=True, default=True, help="Skips apps that are not updated within the last 30 days")
 @click.option("--error-webhook", "-er", type=str, envvar="WEBHOOK_URL", default=None)
@@ -1011,7 +1022,7 @@ def all_command(source: str, docs: str, github_token, priority: bool, error_webh
 	PRIORITY_MODE = priority
 
 	click.secho("Found the source directory and docs directory", fg='green')
-	click.echo(f"Source: {source_path.resolve()}\nDocs: {docs_path.resolve()}")
+	click.echo(f"Source: {source_path.resolve()}\nDocs: {docs_path.resolve()}\nPriority Mode: {PRIORITY_MODE}")
 	process_from_folder(source_path, github_token, error_webhook)
 
 
